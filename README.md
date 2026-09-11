@@ -159,6 +159,7 @@ This project is licensed under the **Apache License 2.0** — see the [LICENSE](
 
 - [heygaurav22](https://github.com/heygaurav22)
 - [heyaurav01](https://github.com/heyaurav01)
+- [Trishit1234](https://github.com/Trishit1234)
 
 ---
 
