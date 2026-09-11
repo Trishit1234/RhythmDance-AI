@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Editorial Red & Cream System */
+  --color-editorial-cream: #F8F1E6;
+  --color-editorial-cream-dark: #EFE7DA;
+  --color-editorial-cream-light: #FDFBF7;
+  --color-editorial-border: #E8DEC8;
+  --color-editorial-red: #B42318;
+  --color-editorial-red-bright: #C92A1E;
+  --color-editorial-red-dark: #7F1D1D;
+  --color-editorial-black: #111111;
+  --color-editorial-darkgray: #252525;
+  --color-editorial-muted: #777777;
+}
+
+:root {
+  --background: #F8F1E6;
+  --foreground: #111111;
+}
+
+/* Custom scrollbar matching cream & red theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #EFE7DA;
+}
+::-webkit-scrollbar-thumb {
+  background: #C92A1E;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #7F1D1D;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  selection-background-color: #B42318;
+  selection-color: #FFFFFF;
+}
+
+::selection {
+  background-color: #B42318;
+  color: #FFFFFF;
+}
+
+/* Custom keyframe animations */
+@keyframes fadeSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseSubtle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(0.98);
+  }
+}
+
+.animate-fade-slide-up {
+  animation: fadeSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-pulse-subtle {
+  animation: pulseSubtle 3s ease-in-out infinite;
+}
+
+/* Segmented progress bar style */
+.progress-segment {
+  height: 6px;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
