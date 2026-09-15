@@ -1,359 +1,563 @@
 "use client";
 
-import { Suspense, useRef, useMemo, useState, useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
-import Navbar from "@/components/Navbar";
 import {
-  Download,
-  ArrowLeft,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+
+import {
   Award,
   CheckCircle2,
-  Loader2,
-  Edit3,
-  UserCheck,
-  X,
+  Download,
+  Lock,
+  ShieldCheck,
 } from "lucide-react";
-import { motion } from "framer-motion";
+
+import Navbar from "@/components/Navbar";
+import { useAuth } from "@/context/AuthContext";
+import { useProgress } from "@/context/ProgressContext";
+import { danceStyles } from "@/data/danceData";
+
+import {
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+
+import { db } from "@/lib/firestore";
+
+type CertificateRecord = {
+  credentialId: string;
+  studentName: string;
+  course: string;
+  danceSlug: string;
+  completion: number;
+  issuedAt: string;
+  userId: string;
+};
+
+const CERTIFICATES_KEY =
+  "roi_certificates";
+
+function createCredentialId(
+  userId: string,
+  danceSlug: string,
+  danceName: string
+) {
+  const source =
+    `${userId}:${danceSlug}:rhythm-of-india-2026`;
+
+  let hash = 0;
+
+  for (let i = 0; i < source.length; i++) {
+    hash =
+      (hash << 5) -
+      hash +
+      source.charCodeAt(i);
+
+    hash |= 0;
+  }
+
+  const number =
+    1000 +
+    (Math.abs(hash) % 9000);
+
+  const code =
+    danceName
+      .replace(/[^a-zA-Z]/g, "")
+      .slice(0, 3)
+      .toUpperCase()
+      .padEnd(3, "X");
+
+  return `ROI-26-${code}-${number}`;
+}
 
 function CertificateContent() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const { user } = useAuth();
-  const certRef = useRef<HTMLDivElement>(null);
-  const [downloading, setDownloading] = useState(false);
-  const [isEditingName, setIsEditingName] = useState(false);
+  const searchParams =
+    useSearchParams();
 
-  const danceName = searchParams.get("dance") || "Odissi";
-  const [customName, setCustomName] = useState("");
-  const [inputName, setInputName] = useState("");
+  const { user } = useAuth();
+
+  const {
+    completedLessons,
+  } = useProgress();
+
+  const certificateRef =
+    useRef<HTMLDivElement>(null);
+
+  const danceParam =
+    searchParams.get("dance") ||
+    "odissi";
+
+  const dance =
+    danceStyles.find(
+      (item) =>
+        item.slug.toLowerCase() ===
+          danceParam.toLowerCase() ||
+        item.name.toLowerCase() ===
+          danceParam.toLowerCase()
+    ) || danceStyles[0];
+
+  const completedCount =
+    completedLessons[dance.slug]
+      ?.length || 0;
+
+  const totalLessons =
+    dance.lessons.length;
+
+  const completion =
+    Math.round(
+      Math.min(
+        100,
+        (completedCount /
+          Math.max(1, totalLessons)) *
+          100
+      )
+    );
+
+  const courseCompleted =
+    completedCount >= totalLessons;
+
+  const fallbackName =
+    user?.displayName ||
+    user?.email?.split("@")[0] ||
+    "Dance Student";
+
+  const [studentName, setStudentName] =
+    useState(fallbackName);
+
+  const [savedCertificate, setSavedCertificate] =
+    useState<CertificateRecord | null>(null);
+
+  const [downloading, setDownloading] =
+    useState(false);
+
+  const credentialId = useMemo(() => {
+    if (!user) return "";
+
+    return createCredentialId(
+      user.uid,
+      dance.slug,
+      dance.name
+    );
+  }, [user, dance.slug, dance.name]);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("roi_user_profile");
-      if (stored) {
-        const data = JSON.parse(stored);
-        if (data.name) {
-          setCustomName(data.name);
-          setInputName(data.name);
-        }
-      }
-    } catch (e) {}
-  }, []);
+    if (!user) return;
 
-  const defaultName = user?.isAnonymous
-    ? "Guest Scholar"
-    : user?.email?.split("@")[0] || "Classical Scholar";
-  const userName = customName || defaultName;
+    const savedProfile =
+      localStorage.getItem(
+        "roi_user_profile"
+      );
 
-  const today = new Date().toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-
-  // Generate certId once per mount to avoid impure render calls
-  const certId = useMemo(
-    () =>
-      `ROI-26-${danceName.toUpperCase().slice(0, 3)}-${Math.floor(1000 + Math.random() * 9000)}`,
-    [danceName]
-  );
-
-  const handleSaveName = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const trimmed = inputName.trim();
-    if (trimmed) {
-      setCustomName(trimmed);
+    if (savedProfile) {
       try {
-        localStorage.setItem("roi_user_profile", JSON.stringify({ name: trimmed }));
-      } catch (err) {}
+        const parsed =
+          JSON.parse(savedProfile);
+
+        if (
+          typeof parsed.name === "string" &&
+          parsed.name.trim()
+        ) {
+          setStudentName(
+            parsed.name.trim()
+          );
+          return;
+        }
+      } catch {}
     }
-    setIsEditingName(false);
-  };
 
-  const handleDownloadPDF = async () => {
-    if (!certRef.current) return;
-    setDownloading(true);
+    setStudentName(fallbackName);
+  }, [user, fallbackName]);
 
-    try {
-      // Dynamically import html2pdf in the browser
-      const html2pdf = (await import("html2pdf.js")).default;
+  useEffect(() => {
+    if (!user || !courseCompleted) return;
 
-      const opt = {
-        margin:       [5, 5, 5, 5] as [number, number, number, number],
-        filename:     `Rhythm-of-India-${danceName}-Certificate.pdf`,
-        image:        { type: "jpeg" as const, quality: 1 },
-        html2canvas:  {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-          foreignObjectRendering: false,
-        },
-        jsPDF:        { unit: "mm" as const, format: "a4" as const, orientation: "landscape" as const },
+    const saveCertificate =
+      async () => {
+        const certificate: CertificateRecord =
+          {
+            credentialId,
+            studentName,
+            course: dance.name,
+            danceSlug: dance.slug,
+            completion: 100,
+            issuedAt:
+              new Date().toISOString(),
+            userId: user.uid,
+          };
+
+        try {
+          const certificateRef =
+            doc(
+              db,
+              "certificates",
+              credentialId
+            );
+
+          const existing =
+            await getDoc(
+              certificateRef
+            );
+
+          if (existing.exists()) {
+            const existingData =
+              existing.data();
+
+            const existingCertificate =
+              existingData as CertificateRecord;
+
+            setSavedCertificate(
+              existingCertificate
+            );
+
+            return;
+          }
+
+          await setDoc(
+            certificateRef,
+            {
+              ...certificate,
+              createdAt:
+                serverTimestamp(),
+            }
+          );
+
+          setSavedCertificate(
+            certificate
+          );
+
+          const existingLocal =
+            localStorage.getItem(
+              CERTIFICATES_KEY
+            );
+
+          let certificates: CertificateRecord[] =
+            [];
+
+          try {
+            certificates =
+              existingLocal
+                ? JSON.parse(
+                    existingLocal
+                  )
+                : [];
+          } catch {}
+
+          const withoutDuplicate =
+            certificates.filter(
+              (item) =>
+                item.credentialId !==
+                credentialId
+            );
+
+          localStorage.setItem(
+            CERTIFICATES_KEY,
+            JSON.stringify([
+              ...withoutDuplicate,
+              certificate,
+            ])
+          );
+        } catch (error) {
+          console.error(
+            "Certificate save failed:",
+            error
+          );
+        }
       };
 
-      await html2pdf().set(opt).from(certRef.current).save();
-    } catch (err) {
-      console.error("PDF generation failed:", err);
-      // Fallback to print
-      window.print();
-    } finally {
-      setDownloading(false);
-    }
-  };
+    saveCertificate();
+  }, [
+    user,
+    courseCompleted,
+    credentialId,
+    studentName,
+    dance.name,
+    dance.slug,
+  ]);
+
+  const downloadCertificate =
+    async () => {
+      if (
+        !courseCompleted ||
+        downloading
+      ) {
+        return;
+      }
+
+      setDownloading(true);
+
+      try {
+        const html2pdf =
+          (
+            await import(
+              "html2pdf.js"
+            )
+          ).default;
+
+        if (!certificateRef.current)
+          return;
+
+        await html2pdf()
+          .set({
+            margin: 0,
+            filename:
+              `${dance.name}-Certificate-${credentialId}.pdf`,
+            image: {
+              type: "jpeg",
+              quality: 0.98,
+            },
+            html2canvas: {
+              scale: 2,
+              useCORS: true,
+            },
+            jsPDF: {
+              unit: "mm",
+              format: "a4",
+              orientation:
+                "landscape",
+            },
+          })
+          .from(certificateRef.current)
+          .save();
+      } catch (error) {
+        console.error(
+          "Certificate download failed:",
+          error
+        );
+      } finally {
+        setDownloading(false);
+      }
+    };
 
   return (
-    <main className="pt-24 sm:pt-28 pb-20 px-3 sm:px-6 max-w-4xl mx-auto space-y-6 sm:space-y-8">
-      {/* ── Top Header Bar with Breadcrumb & Edit Name Button ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E8DEC8] pb-4">
-        <div className="flex items-center gap-2 text-xs font-bold text-[#777777]">
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="hover:text-[#B42318] transition-colors flex items-center gap-1 cursor-pointer"
-          >
-            <ArrowLeft size={13} />
-            <span>Dashboard</span>
-          </button>
-          <span>/</span>
-          <span className="text-[#111111] font-mono uppercase">
-            {danceName} · Accreditation Certificate
-          </span>
-        </div>
+    <div className="min-h-screen bg-[#F8F1E6] text-[#111111]">
+      <Navbar />
 
-        {/* Edit Student Name Button */}
-        <button
-          onClick={() => {
-            setInputName(userName);
-            setIsEditingName(true);
-          }}
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-white hover:bg-[#EFE7DA] border border-[#E8DEC8] rounded-full text-xs font-bold text-[#111111] transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-sm self-start sm:self-auto"
-        >
-          <Edit3 size={13} className="text-[#B42318]" />
-          <span>Edit Student Name</span>
-        </button>
-      </div>
-
-      {/* ── Clean Hero Banner (Replaced long repetitive uppercase text) ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center space-y-2 max-w-2xl mx-auto"
-      >
-        <div className="inline-flex items-center gap-2 bg-[#EFE7DA] border border-[#E8DEC8] rounded-full px-3.5 py-1 text-[11px] font-bold text-[#111111]">
-          <Award size={14} className="text-[#B42318]" />
-          <span>OFFICIAL ACCREDITATION DIPLOMA</span>
-        </div>
-        <h1 className="text-2xl sm:text-4xl font-black uppercase text-[#111111] font-mono tracking-tight">
-          Verified Certificate of Mastery
-        </h1>
-        <p className="text-xs sm:text-sm text-[#777777] max-w-md mx-auto leading-relaxed">
-          Awarded for successful completion of the <strong className="text-[#111111]">{danceName}</strong> classical curriculum and knowledge assessment.
-        </p>
-      </motion.div>
-
-      {/* ── Official Diploma Certificate Document ── */}
-      <div className="w-full overflow-x-auto pb-2">
-        <motion.div
-          ref={certRef}
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.15 }}
-          className="relative bg-white border-2 sm:border-4 border-[#111111] rounded-[24px] sm:rounded-[36px] p-6 sm:p-12 md:p-16 mx-auto max-w-3xl shadow-xl overflow-hidden print:border-2 print:m-0 print:shadow-none min-w-[300px]"
-        >
-          {/* Ornate Red Corner Accents */}
-          <div className="absolute top-3 left-3 sm:top-4 sm:left-4 w-6 h-6 sm:w-12 sm:h-12 border-t-2 sm:border-t-4 border-l-2 sm:border-l-4 border-[#B42318] rounded-tl-lg sm:rounded-tl-xl pointer-events-none" />
-          <div className="absolute top-3 right-3 sm:top-4 sm:right-4 w-6 h-6 sm:w-12 sm:h-12 border-t-2 sm:border-t-4 border-r-2 sm:border-r-4 border-[#B42318] rounded-tr-lg sm:rounded-tr-xl pointer-events-none" />
-          <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 w-6 h-6 sm:w-12 sm:h-12 border-b-2 sm:border-b-4 border-l-2 sm:border-l-4 border-[#B42318] rounded-bl-lg sm:rounded-bl-xl pointer-events-none" />
-          <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 w-6 h-6 sm:w-12 sm:h-12 border-b-2 sm:border-b-4 border-r-2 sm:border-r-4 border-[#B42318] rounded-br-lg sm:rounded-br-xl pointer-events-none" />
-
-          <div className="text-center space-y-4 sm:space-y-6">
-            {/* Header Mark */}
-            <div className="flex flex-col items-center">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#111111] text-[#F8F1E6] flex items-center justify-center font-mono font-black text-lg sm:text-xl mb-2">
-                ♫
-              </div>
-              <p className="text-[10px] sm:text-xs font-black uppercase tracking-[0.25em] sm:tracking-[0.35em] text-[#777777] font-mono">
-                RHYTHM OF INDIA ACADEMY
-              </p>
-              <p className="text-[9px] sm:text-[10px] font-bold tracking-wider sm:tracking-widest text-[#B42318] uppercase">
-                NATIONAL HERITAGE PROTOCOL · CLASSICAL ARTS ACADEMY
-              </p>
-            </div>
-
-            <div className="h-px w-20 sm:w-24 bg-[#B42318] mx-auto" />
-
-            {/* Certificate Title */}
-            <div>
-              <h2 className="text-lg sm:text-2xl font-black uppercase tracking-[0.15em] sm:tracking-[0.2em] text-[#111111] font-mono">
-                CERTIFICATE OF MASTERY
-              </h2>
-              <p className="text-[11px] sm:text-xs text-[#777777] mt-1 italic">
-                This is proudly presented to
-              </p>
-            </div>
-
-            {/* Scholar Name (With responsive sizing and word-break) */}
-            <div className="py-2 border-b-2 border-[#E5E5E5] max-w-lg mx-auto">
-              <h3 className="text-xl sm:text-3xl md:text-4xl font-black uppercase tracking-tight text-[#111111] font-mono break-words leading-tight">
-                {userName}
-              </h3>
-            </div>
-
-            {/* Body Text */}
-            <p className="text-xs sm:text-sm text-[#252525] max-w-lg mx-auto leading-relaxed font-medium">
-              for successfully completing all curriculum modules, demonstrating mastery of classical hand mudras, rhythmic footwork (Tala), and expressive storytelling (Abhinaya) in the sacred tradition of{" "}
-              <strong className="text-[#B42318] font-bold uppercase">{danceName}</strong>.
+      <main className="max-w-6xl mx-auto px-4 sm:px-8 py-12">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 mb-10">
+          <div>
+            <p className="text-xs font-black tracking-[0.25em] text-[#B42318] font-mono">
+              RHYTHM OF INDIA ACADEMY
             </p>
 
-            {/* Metadata & Seal Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 sm:pt-6 border-t border-[#E8DEC8] items-center text-center text-xs">
-              <div className="order-2 sm:order-1">
-                <p className="font-mono font-bold text-[#111111]">{today}</p>
-                <p className="text-[10px] text-[#777777] uppercase font-mono">DATE OF ISSUANCE</p>
-              </div>
+            <h1 className="mt-2 text-4xl sm:text-6xl font-black uppercase font-mono tracking-tight">
+              Certificate
+            </h1>
 
-              {/* Red Digital Seal */}
-              <div className="order-1 sm:order-2 flex flex-col items-center justify-center">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-[#B42318] bg-[#FDF2F2] flex flex-col items-center justify-center text-center p-1 shadow-sm">
-                  <CheckCircle2 size={16} className="text-[#B42318]" />
-                  <span className="text-[7px] sm:text-[8px] font-black uppercase text-[#B42318] font-mono leading-tight">
-                    OFFICIAL SEAL
-                  </span>
-                </div>
-              </div>
+            <p className="mt-3 text-sm text-gray-600">
+              {dance.name} course achievement
+            </p>
+          </div>
 
-              <div className="order-3">
-                <p className="font-mono font-bold text-[#111111] truncate">{certId}</p>
-                <p className="text-[10px] text-[#777777] uppercase font-mono">CREDENTIAL ID</p>
-              </div>
+          {courseCompleted && (
+            <div className="inline-flex items-center gap-2 rounded-full bg-green-100 border border-green-200 px-4 py-2 text-xs font-black text-green-700">
+              <CheckCircle2 size={15} />
+              COURSE COMPLETED
             </div>
+          )}
+        </div>
 
-            {/* Signatures */}
-            <div className="grid grid-cols-2 gap-4 sm:gap-8 pt-4 max-w-sm mx-auto text-center border-t border-[#F0EBE1]">
-              <div>
-                <p className="font-serif italic text-xs sm:text-sm font-bold text-[#111111]">Guru Mandali</p>
-                <p className="text-[8px] sm:text-[9px] font-mono text-[#777777] uppercase">Lineage Academic Council</p>
+        {!courseCompleted && (
+          <div className="mb-8 rounded-3xl bg-[#111111] text-white p-6 sm:p-8 border border-white/10">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-[#B42318] flex items-center justify-center shrink-0">
+                <Lock size={20} />
               </div>
+
               <div>
-                <p className="font-serif italic text-xs sm:text-sm font-bold text-[#111111]">Directorate</p>
-                <p className="text-[8px] sm:text-[9px] font-mono text-[#777777] uppercase">Rhythm of India</p>
+                <p className="font-black uppercase font-mono">
+                  Certificate Locked
+                </p>
+
+                <p className="mt-2 text-sm text-gray-400">
+                  Complete all {totalLessons} lessons
+                  of {dance.name} to unlock your
+                  official certificate.
+                </p>
+
+                <div className="mt-4 h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full bg-[#E3B23C] rounded-full"
+                    style={{
+                      width: `${completion}%`,
+                    }}
+                  />
+                </div>
+
+                <p className="mt-2 text-xs text-gray-500 font-mono">
+                  {completedCount}/{totalLessons} lessons
+                  • {completion}% complete
+                </p>
               </div>
             </div>
           </div>
-        </motion.div>
-      </div>
+        )}
 
-      {/* ── Action Buttons ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.25 }}
-        className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2 print:hidden"
-      >
-        <button
-          onClick={() => router.push("/dashboard")}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-[#EFE7DA] hover:bg-[#E8DEC8] text-[#111111] font-bold text-xs rounded-full transition-all active:scale-95 cursor-pointer"
+        <div
+          ref={certificateRef}
+          className={`relative bg-white shadow-2xl overflow-hidden ${
+            !courseCompleted
+              ? "opacity-90"
+              : ""
+          }`}
+          style={{
+            aspectRatio: "1.414 / 1",
+          }}
         >
-          <ArrowLeft size={16} />
-          <span>Return to Dashboard</span>
-        </button>
+          <div className="absolute inset-5 border-[3px] border-[#B42318]" />
 
-        <button
-          onClick={handleDownloadPDF}
-          disabled={downloading}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 bg-[#B42318] hover:bg-[#C92A1E] text-white font-black uppercase tracking-wider text-xs rounded-full transition-all duration-300 hover:scale-105 active:scale-95 shadow-xl shadow-[#B42318]/30 cursor-pointer disabled:opacity-60 disabled:cursor-wait"
-        >
-          {downloading ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              <span>Generating PDF...</span>
-            </>
-          ) : (
-            <>
-              <Download size={16} />
-              <span>Download Official PDF</span>
-            </>
-          )}
-        </button>
-      </motion.div>
+          <div className="absolute inset-7 border border-[#E3B23C]" />
 
-      {/* ── Edit Student Name Modal ── */}
-      {isEditingName && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white border border-[#E8DEC8] rounded-[28px] max-w-md w-full p-6 shadow-2xl space-y-4"
-          >
-            <div className="flex items-center justify-between border-b border-[#E8DEC8] pb-3">
-              <div className="flex items-center gap-2">
-                <UserCheck size={18} className="text-[#B42318]" />
-                <h3 className="font-mono font-black uppercase text-sm text-[#111111]">
-                  Edit Certificate Name
-                </h3>
+          <div className="relative h-full flex flex-col items-center justify-center text-center px-10 sm:px-20">
+            {!courseCompleted && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/55 backdrop-blur-[2px]">
+                <div className="rotate-[-12deg] border-4 border-[#B42318] px-8 py-4 text-[#B42318] font-black text-xl sm:text-3xl tracking-widest uppercase">
+                  PREVIEW
+                  <br />
+                  <span className="text-sm sm:text-base">
+                    COMPLETE COURSE TO UNLOCK
+                  </span>
+                </div>
               </div>
-              <button
-                onClick={() => setIsEditingName(false)}
-                className="p-1 rounded-full text-gray-400 hover:text-[#111111] hover:bg-[#EFE7DA] transition-colors cursor-pointer"
-              >
-                <X size={18} />
-              </button>
+            )}
+
+            <div className="text-[#B42318] text-4xl">
+              ♫
             </div>
 
-            <form onSubmit={handleSaveName} className="space-y-4">
+            <p className="mt-3 text-xs sm:text-sm font-black tracking-[0.35em] font-mono">
+              RHYTHM OF INDIA ACADEMY
+            </p>
+
+            <p className="mt-7 text-[10px] sm:text-xs tracking-[0.35em] text-gray-500 font-bold">
+              CERTIFICATE OF MASTERY
+            </p>
+
+            <h2 className="mt-5 text-4xl sm:text-6xl lg:text-7xl font-black font-serif text-[#111111]">
+              {studentName}
+            </h2>
+
+            <p className="mt-4 text-sm sm:text-base text-gray-500">
+              has successfully completed the
+            </p>
+
+            <p className="mt-2 text-2xl sm:text-4xl font-black uppercase font-mono text-[#B42318]">
+              {dance.name}
+            </p>
+
+            <div className="mt-6 flex items-center gap-3 text-[#E3B23C]">
+              <div className="w-16 h-px bg-[#E3B23C]" />
+              <Award size={22} />
+              <div className="w-16 h-px bg-[#E3B23C]" />
+            </div>
+
+            <p className="mt-5 text-xs sm:text-sm text-gray-500 max-w-xl">
+              Demonstrating dedication to learning,
+              practice and the traditions of Indian
+              classical dance.
+            </p>
+
+            <div className="absolute bottom-12 left-12 right-12 flex flex-col sm:flex-row justify-between items-end gap-6 text-left">
               <div>
-                <label className="block text-xs font-bold text-[#777777] uppercase font-mono mb-1.5">
-                  Student Full Name:
-                </label>
-                <input
-                  type="text"
-                  value={inputName}
-                  onChange={(e) => setInputName(e.target.value)}
-                  placeholder="e.g. Yash Chowdhury"
-                  autoFocus
-                  className="w-full px-4 py-3 bg-[#F8F1E6] border border-[#E8DEC8] rounded-xl text-sm font-bold text-[#111111] focus:outline-none focus:border-[#B42318]"
-                />
-                <p className="text-[11px] text-[#777777] mt-1.5">
-                  This name will appear on your official certificate and downloaded PDF.
+                <p className="text-[9px] text-gray-400 uppercase tracking-widest">
+                  Credential ID
+                </p>
+
+                <p className="mt-1 text-xs font-black font-mono">
+                  {credentialId}
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsEditingName(false)}
-                  className="flex-1 py-3 bg-[#EFE7DA] hover:bg-[#E8DEC8] text-[#111111] font-bold text-xs rounded-xl transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-3 bg-[#B42318] hover:bg-[#C92A1E] text-white font-black uppercase text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
-                >
-                  Save Name
-                </button>
+              <div className="text-center">
+                <div className="w-24 h-px bg-gray-300 mb-2" />
+                <p className="text-[9px] text-gray-400 uppercase tracking-widest">
+                  Academy Director
+                </p>
               </div>
-            </form>
-          </motion.div>
+
+              <div className="text-right">
+                <p className="text-[9px] text-gray-400 uppercase tracking-widest">
+                  Completion
+                </p>
+
+                <p className="mt-1 text-xs font-black">
+                  {courseCompleted
+                    ? "100%"
+                    : `${completion}%`}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
-      )}
-    </main>
+
+        <div className="mt-8 flex flex-col sm:flex-row justify-center gap-3">
+          <button
+            onClick={downloadCertificate}
+            disabled={
+              !courseCompleted ||
+              downloading
+            }
+            className={`inline-flex items-center justify-center gap-2 rounded-full px-7 py-4 text-xs font-black uppercase tracking-wider transition ${
+              courseCompleted
+                ? "bg-[#B42318] text-white hover:bg-[#D4492F]"
+                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+            }`}
+          >
+            {courseCompleted ? (
+              <Download size={16} />
+            ) : (
+              <Lock size={16} />
+            )}
+
+            {downloading
+              ? "Generating..."
+              : courseCompleted
+              ? "Download Official PDF"
+              : "Complete Course to Download"}
+          </button>
+
+          {courseCompleted && (
+            <Link
+              href={`/verify?id=${encodeURIComponent(
+                credentialId
+              )}`}
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-white border border-[#E8DEC8] px-7 py-4 text-xs font-black uppercase tracking-wider hover:bg-[#EFE7DA]"
+            >
+              <ShieldCheck size={16} />
+              Verify Certificate
+            </Link>
+          )}
+        </div>
+
+        {savedCertificate && (
+          <p className="mt-5 text-center text-xs text-gray-500 font-mono">
+            Credential ID:{" "}
+            {savedCertificate.credentialId}
+          </p>
+        )}
+      </main>
+    </div>
   );
 }
 
 export default function CertificatePage() {
   return (
-    <div className="min-h-screen bg-[#F8F1E6] text-[#111111] selection:bg-[#B42318] selection:text-white">
-      <Navbar />
-      <Suspense
-        fallback={
-          <div className="h-screen flex items-center justify-center">
-            <div className="w-12 h-12 border-4 border-[#B42318] border-t-transparent rounded-full animate-spin" />
-          </div>
-        }
-      >
-        <CertificateContent />
-      </Suspense>
-    </div>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[#F8F1E6]">
+          Loading certificate...
+        </div>
+      }
+    >
+      <CertificateContent />
+    </Suspense>
   );
 }

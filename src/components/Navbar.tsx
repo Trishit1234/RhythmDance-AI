@@ -38,6 +38,10 @@ export default function Navbar({ onSearch }: NavbarProps) {
 
   const profileRef = useRef<HTMLDivElement>(null);
 
+  // --------------------------------------------------
+  // CLOSE MENUS WHEN CLICKING OUTSIDE / ESCAPE
+  // --------------------------------------------------
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -64,21 +68,38 @@ export default function Navbar({ onSearch }: NavbarProps) {
     };
   }, []);
 
+  // --------------------------------------------------
+  // LOGOUT
+  // --------------------------------------------------
+
   const handleLogout = useCallback(async () => {
     setProfileOpen(false);
     setMobileMenuOpen(false);
+
     await logout();
+
     router.push("/");
   }, [logout, router]);
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // --------------------------------------------------
+  // SEARCH
+  // --------------------------------------------------
+
+  const handleSearchChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const value = e.target.value;
+
     setSearchQuery(value);
 
     if (onSearch) {
       onSearch(value);
     }
   };
+
+  // --------------------------------------------------
+  // LOAD CUSTOM PROFILE DATA
+  // --------------------------------------------------
 
   const loadProfile = useCallback(() => {
     try {
@@ -89,36 +110,101 @@ export default function Navbar({ onSearch }: NavbarProps) {
 
         if (data.name) {
           setCustomName(data.name);
+        } else {
+          setCustomName("");
         }
 
         if (data.avatarUrl) {
           setAvatarUrl(data.avatarUrl);
+        } else {
+          setAvatarUrl("");
         }
+      } else {
+        setCustomName("");
+        setAvatarUrl("");
       }
     } catch {
-      // Ignore invalid local profile data.
+      setCustomName("");
+      setAvatarUrl("");
     }
   }, []);
+
+  // --------------------------------------------------
+  // LISTEN FOR PROFILE UPDATES
+  // --------------------------------------------------
 
   useEffect(() => {
     loadProfile();
 
-    window.addEventListener("roi_profile_updated", loadProfile);
+    window.addEventListener(
+      "roi_profile_updated",
+      loadProfile
+    );
 
     return () => {
-      window.removeEventListener("roi_profile_updated", loadProfile);
+      window.removeEventListener(
+        "roi_profile_updated",
+        loadProfile
+      );
     };
   }, [loadProfile]);
 
-  const defaultName = user?.isAnonymous
-    ? "Guest Explorer"
-    : user?.email?.split("@")[0] || "Dancer";
+  // --------------------------------------------------
+  // REAL USER NAME
+  // --------------------------------------------------
+  //
+  // Priority:
+  //
+  // 1. Custom name from profile
+  // 2. Firebase displayName
+  // 3. Email username
+  // 4. Guest Explorer
+  // 5. Dancer
+  //
 
-  const displayName = customName || defaultName;
-  const userInitial = displayName.trim().charAt(0).toUpperCase() || "U";
+  const firebaseName =
+    user?.displayName ||
+    user?.email?.split("@")[0] ||
+    (user?.isAnonymous ? "Guest Explorer" : "Dancer");
+
+  const displayName =
+    customName.trim() || firebaseName;
+
+  // --------------------------------------------------
+  // REAL EMAIL
+  // --------------------------------------------------
+
+  const displayEmail =
+    user?.email ||
+    "Guest account";
+
+  // --------------------------------------------------
+  // REAL PROFILE IMAGE
+  // --------------------------------------------------
+  //
+  // Custom uploaded image has priority.
+  // If there isn't one, use Firebase/Google photo.
+  //
+
+  const profileImage =
+    avatarUrl ||
+    user?.photoURL ||
+    "";
+
+  // --------------------------------------------------
+  // USER INITIAL
+  // --------------------------------------------------
+
+  const userInitial =
+    displayName.trim().charAt(0).toUpperCase() || "U";
+
+  // --------------------------------------------------
+  // ACTIVE NAVIGATION
+  // --------------------------------------------------
 
   const isHomeActive =
-    pathname === "/dashboard" || pathname === "/";
+    pathname === "/dashboard" ||
+    pathname === "/";
 
   const isLessonsActive =
     pathname.startsWith("/learning") ||
@@ -133,25 +219,40 @@ export default function Navbar({ onSearch }: NavbarProps) {
   const isReviewsActive =
     pathname.startsWith("/reviews");
 
+  // --------------------------------------------------
+  // MOBILE MENU
+  // --------------------------------------------------
+
   const closeMobileMenu = () => {
     setMobileMenuOpen(false);
   };
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-[#F8F1E6]/95 backdrop-blur-md border-b border-[#E8DEC8] transition-all duration-300">
+
       <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-8 py-2.5">
 
-        {/* LEFT — LOGO + SEARCH */}
+        {/* ==========================================
+            LEFT — LOGO + SEARCH
+        ========================================== */}
+
         <div className="flex items-center gap-4 lg:gap-6">
+
           <Link
             href="/dashboard"
             className="flex items-center gap-2.5 group"
           >
+
             <div className="w-8 h-8 rounded-lg bg-[#111111] text-[#F8F1E6] flex items-center justify-center font-black text-sm tracking-tighter group-hover:bg-[#B42318] transition-colors">
               ♫
             </div>
 
             <div className="flex flex-col">
+
               <span className="text-sm font-black tracking-tight text-[#111111] uppercase font-mono">
                 RHYTHM
               </span>
@@ -159,11 +260,14 @@ export default function Navbar({ onSearch }: NavbarProps) {
               <span className="text-[10px] font-bold tracking-widest text-[#B42318] -mt-1 uppercase">
                 OF INDIA
               </span>
+
             </div>
           </Link>
 
           {/* DESKTOP SEARCH */}
+
           <div className="hidden md:flex items-center bg-[#EFE7DA] border border-[#E8DEC8] rounded-full px-3.5 py-1.5 w-48 lg:w-64 focus-within:w-72 focus-within:border-[#B42318] focus-within:bg-white transition-all duration-300">
+
             <Search
               size={14}
               className="text-[#777777] mr-2 flex-shrink-0"
@@ -177,10 +281,15 @@ export default function Navbar({ onSearch }: NavbarProps) {
               aria-label="Search courses and lessons"
               className="bg-transparent text-xs text-[#111111] placeholder-[#777777] outline-none w-full font-medium"
             />
+
           </div>
+
         </div>
 
-        {/* DESKTOP NAVIGATION */}
+        {/* ==========================================
+            DESKTOP NAVIGATION
+        ========================================== */}
+
         <nav className="hidden md:flex items-center gap-6 lg:gap-7 text-xs font-bold tracking-wide text-[#252525]">
 
           <Link
@@ -250,7 +359,6 @@ export default function Navbar({ onSearch }: NavbarProps) {
             )}
           </Link>
 
-          {/* REVIEWS */}
           <Link
             href="/reviews"
             className={`relative py-1 transition-colors hover:text-[#111111] flex flex-col items-center ${
@@ -265,14 +373,21 @@ export default function Navbar({ onSearch }: NavbarProps) {
               <span className="absolute -bottom-1 h-0.5 w-5 rounded-full bg-[#B42318]" />
             )}
           </Link>
+
         </nav>
 
-        {/* RIGHT SIDE */}
+        {/* ==========================================
+            RIGHT SIDE
+        ========================================== */}
+
         <div className="flex items-center gap-2.5 sm:gap-3">
 
           {/* NOTIFICATIONS */}
+
           <button
-            onClick={() => router.push("/notifications")}
+            onClick={() =>
+              router.push("/notifications")
+            }
             className="p-2 text-[#252525] hover:text-[#B42318] rounded-full hover:bg-[#EFE7DA] transition-colors relative"
             aria-label="Notifications"
           >
@@ -282,75 +397,101 @@ export default function Navbar({ onSearch }: NavbarProps) {
           </button>
 
           {/* USER */}
+
           {user ? (
             <div
               className="relative"
               ref={profileRef}
             >
+
               <button
-                onClick={() => setProfileOpen(!profileOpen)}
+                onClick={() =>
+                  setProfileOpen(!profileOpen)
+                }
                 aria-label="User profile"
                 aria-expanded={profileOpen}
                 className="flex items-center gap-1.5 cursor-pointer group"
               >
+
                 <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#111111] text-white flex items-center justify-center text-base sm:text-lg font-black uppercase ring-2 ring-transparent group-hover:ring-[#B42318] transition-all shadow-md overflow-hidden">
-                  {avatarUrl ? (
+
+                  {profileImage ? (
                     <img
-                      src={avatarUrl}
-                      alt="Avatar"
+                      src={profileImage}
+                      alt={`${displayName}'s avatar`}
                       className="w-full h-full object-cover"
                     />
                   ) : (
                     userInitial
                   )}
+
                 </div>
 
                 <ChevronDown
                   size={14}
                   className="text-[#777777] group-hover:text-[#111111] transition-colors hidden sm:block"
                 />
+
               </button>
 
-              {/* PROFILE DROPDOWN */}
+              {/* ======================================
+                  PROFILE DROPDOWN
+              ====================================== */}
+
               {profileOpen && (
                 <div className="absolute right-0 mt-2.5 w-60 bg-white border border-[#E8DEC8] rounded-2xl shadow-2xl p-2 z-50 animate-fade-slide-up">
 
                   {/* USER IDENTITY */}
+
                   <div className="p-3.5 bg-[#F8F1E6] rounded-xl mb-1.5">
+
                     <div className="flex items-center gap-3">
+
                       <div className="w-10 h-10 rounded-full bg-[#111111] text-white flex items-center justify-center text-base font-black uppercase flex-shrink-0 overflow-hidden">
-                        {avatarUrl ? (
+
+                        {profileImage ? (
                           <img
-                            src={avatarUrl}
-                            alt="Avatar"
+                            src={profileImage}
+                            alt={`${displayName}'s avatar`}
                             className="w-full h-full object-cover"
                           />
                         ) : (
                           userInitial
                         )}
+
                       </div>
 
                       <div className="min-w-0">
+
                         <p className="text-sm font-black text-[#111111] truncate capitalize">
                           {displayName}
                         </p>
 
                         <p className="text-[10px] text-[#777777] truncate">
-                          {user.email || "guest@rhythmofindia.org"}
+                          {displayEmail}
                         </p>
+
                       </div>
+
                     </div>
 
                     <div className="mt-2.5 inline-flex items-center gap-1 bg-[#B42318]/10 text-[#B42318] px-2 py-0.5 rounded-md text-[10px] font-bold">
+
                       <Sparkles size={10} />
+
                       Classical Scholar
+
                     </div>
+
                   </div>
 
                   {/* PROFILE MENU */}
+
                   <Link
                     href="/profile"
-                    onClick={() => setProfileOpen(false)}
+                    onClick={() =>
+                      setProfileOpen(false)
+                    }
                     className="flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-[#252525] hover:bg-[#F8F1E6] rounded-lg transition-colors"
                   >
                     <UserIcon
@@ -362,7 +503,9 @@ export default function Navbar({ onSearch }: NavbarProps) {
 
                   <Link
                     href="/learning"
-                    onClick={() => setProfileOpen(false)}
+                    onClick={() =>
+                      setProfileOpen(false)
+                    }
                     className="flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-[#252525] hover:bg-[#F8F1E6] rounded-lg transition-colors"
                   >
                     <BookOpen
@@ -374,7 +517,9 @@ export default function Navbar({ onSearch }: NavbarProps) {
 
                   <Link
                     href="/certificate"
-                    onClick={() => setProfileOpen(false)}
+                    onClick={() =>
+                      setProfileOpen(false)
+                    }
                     className="flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-[#252525] hover:bg-[#F8F1E6] rounded-lg transition-colors"
                   >
                     <Award
@@ -386,7 +531,9 @@ export default function Navbar({ onSearch }: NavbarProps) {
 
                   <Link
                     href="/reviews"
-                    onClick={() => setProfileOpen(false)}
+                    onClick={() =>
+                      setProfileOpen(false)
+                    }
                     className="flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-[#252525] hover:bg-[#F8F1E6] rounded-lg transition-colors"
                   >
                     <MessageCircle
@@ -398,7 +545,9 @@ export default function Navbar({ onSearch }: NavbarProps) {
 
                   <Link
                     href="/subscription"
-                    onClick={() => setProfileOpen(false)}
+                    onClick={() =>
+                      setProfileOpen(false)
+                    }
                     className="flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-[#252525] hover:bg-[#F8F1E6] rounded-lg transition-colors"
                   >
                     <CreditCard
@@ -410,7 +559,9 @@ export default function Navbar({ onSearch }: NavbarProps) {
 
                   <Link
                     href="/settings"
-                    onClick={() => setProfileOpen(false)}
+                    onClick={() =>
+                      setProfileOpen(false)
+                    }
                     className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-[#252525] hover:bg-[#F8F1E6] rounded-lg transition-colors cursor-pointer"
                   >
                     <Settings
@@ -429,8 +580,10 @@ export default function Navbar({ onSearch }: NavbarProps) {
                     <LogOut size={14} />
                     Sign Out
                   </button>
+
                 </div>
               )}
+
             </div>
           ) : (
             <Link
@@ -442,8 +595,11 @@ export default function Navbar({ onSearch }: NavbarProps) {
           )}
 
           {/* MOBILE MENU BUTTON */}
+
           <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            onClick={() =>
+              setMobileMenuOpen(!mobileMenuOpen)
+            }
             className="md:hidden p-1.5 text-[#111111] hover:bg-[#EFE7DA] rounded-lg transition-colors"
             aria-label="Toggle menu"
             aria-expanded={mobileMenuOpen}
@@ -454,15 +610,21 @@ export default function Navbar({ onSearch }: NavbarProps) {
               <Menu size={20} />
             )}
           </button>
+
         </div>
       </div>
 
-      {/* MOBILE DRAWER */}
+      {/* ==========================================
+          MOBILE DRAWER
+      ========================================== */}
+
       {mobileMenuOpen && (
         <div className="md:hidden bg-[#F8F1E6] border-b border-[#E8DEC8] px-4 py-4 space-y-3 animate-fade-slide-up">
 
           {/* MOBILE SEARCH */}
+
           <div className="flex items-center bg-[#EFE7DA] border border-[#E8DEC8] rounded-full px-3 py-2">
+
             <Search
               size={14}
               className="text-[#777777] mr-2"
@@ -476,9 +638,11 @@ export default function Navbar({ onSearch }: NavbarProps) {
               aria-label="Search courses and lessons"
               className="bg-transparent text-xs text-[#111111] placeholder-[#777777] outline-none w-full font-medium"
             />
+
           </div>
 
           {/* MOBILE NAVIGATION */}
+
           <div className="grid grid-cols-2 gap-2 pt-2 text-xs font-bold">
 
             <Link
@@ -548,9 +712,11 @@ export default function Navbar({ onSearch }: NavbarProps) {
             >
               Reviews
             </Link>
+
           </div>
 
           {/* MOBILE LOGOUT */}
+
           {user && (
             <button
               onClick={handleLogout}
@@ -559,8 +725,10 @@ export default function Navbar({ onSearch }: NavbarProps) {
               Logout
             </button>
           )}
+
         </div>
       )}
+
     </header>
   );
 }

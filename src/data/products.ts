@@ -1,10 +1,18 @@
-export type ProductSize = "S" | "M" | "L" | "XL" | "XXL";
+export type ProductSize = "XS" | "S" | "M" | "L" | "XL" | "XXL";
+
+export type ProductCategory =
+  | "Bharatanatyam"
+  | "Kathak"
+  | "Odissi"
+  | "Kuchipudi"
+  | "Accessories";
 
 export interface Product {
   id: string;
   name: string;
   price: number;
   description: string;
+  category: ProductCategory;
   sizes: ProductSize[];
   image: string;
   accent: string;
@@ -12,6 +20,7 @@ export interface Product {
 }
 
 export const productSizes: ProductSize[] = [
+  "XS",
   "S",
   "M",
   "L",
@@ -21,39 +30,40 @@ export const productSizes: ProductSize[] = [
 
 export const products: Product[] = [
   {
-    id: "rhythm-classic-tee",
-    name: "Rhythm Classic Tee",
-    price: 799,
+    id: "bharatanatyam-costume",
+    name: "Bharatanatyam Dance Costume",
+    price: 2499,
     description:
-      "A clean everyday tee inspired by the rhythm, movement and spirit of Indian dance.",
+      "Traditional stitched Bharatanatyam costume with pleated fan, dance belt and performance-ready detailing.",
+    category: "Bharatanatyam",
     sizes: productSizes,
-    image: "/products/rhythm-classic-tee.png",
+    image: "/products/bharatanatyam-costume.jpg",
     accent: "#B42318",
-    badge: "BESTSELLER",
+    badge: "CLASSICAL",
   },
-
   {
-    id: "india-in-rhythm-tee",
-    name: "India in Rhythm Tee",
-    price: 899,
+    id: "kathak-costume",
+    name: "Kathak Dance Costume",
+    price: 2299,
     description:
-      "A bold heritage-inspired design celebrating India's many traditions through one rhythm.",
+      "Elegant Kathak performance attire designed for comfortable movement during training and stage performances.",
+    category: "Kathak",
     sizes: productSizes,
-    image: "/products/india-in-rhythm-tee.png",
-    accent: "#D65A1F",
-    badge: "NEW",
+    image: "/products/kathak-costume.jpg",
+    accent: "#8F1D3E",
+    badge: "ACADEMY PICK",
   },
-
   {
-    id: "rhythm-heritage-tee",
-    name: "Rhythm Heritage Tee",
-    price: 999,
+    id: "odissi-costume",
+    name: "Odissi Dance Costume",
+    price: 2499,
     description:
-      "A premium heritage tee created for learners, performers and lovers of Indian culture.",
+      "Traditional Odissi-inspired costume with structured drape, fitted styling and heritage-inspired detailing.",
+    category: "Odissi",
     sizes: productSizes,
-    image: "/products/rhythm-heritage-tee.png",
-    accent: "#111111",
-    badge: "PREMIUM",
+    image: "/products/odissi-costume.jpg",
+    accent: "#B45309",
+    badge: "HERITAGE",
   },
 ];
 

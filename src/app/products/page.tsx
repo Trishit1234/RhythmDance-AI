@@ -1,29 +1,38 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { Suspense, useMemo, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
-  ShoppingBag,
   ArrowRight,
-  Check,
-  Plus,
   Minus,
-  X,
-  ShoppingCart,
+  Plus,
+  ShoppingBag,
   Trash2,
+  X,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 
 import Navbar from "@/components/Navbar";
 import {
   products,
   productSizes,
+  type ProductCategory,
   type ProductSize,
 } from "@/data/products";
 import { useCart } from "@/context/CartContext";
 
-export default function ProductsPage() {
+const categories: Array<"All" | ProductCategory> = [
+  "All",
+  "Bharatanatyam",
+  "Kathak",
+  "Odissi",
+  "Kuchipudi",
+  "Accessories",
+];
+
+function ProductsContent() {
+  const searchParams = useSearchParams();
   const {
     items,
     itemCount,
@@ -33,559 +42,422 @@ export default function ProductsPage() {
     updateQuantity,
   } = useCart();
 
-  const [cartOpen, setCartOpen] =
-    useState(false);
+  const initialProductId = searchParams.get("product");
 
-  const [selectedSizes, setSelectedSizes] =
-    useState<Record<string, ProductSize>>(
-      Object.fromEntries(
-        products.map((product) => [
-          product.id,
-          "M",
-        ])
-      ) as Record<
-        string,
-        ProductSize
-      >
-    );
+  const [activeCategory, setActiveCategory] = useState<
+    "All" | ProductCategory
+  >("All");
+  const [selectedSizes, setSelectedSizes] = useState<
+    Record<string, ProductSize>
+  >(
+    Object.fromEntries(
+      products.map((product) => [product.id, "M"])
+    ) as Record<string, ProductSize>
+  );
+  const [cartOpen, setCartOpen] = useState(false);
 
-  const [addedProduct, setAddedProduct] =
-    useState<string | null>(null);
+  const filteredProducts = useMemo(() => {
+    if (activeCategory === "All") return products;
+    return products.filter((product) => product.category === activeCategory);
+  }, [activeCategory]);
 
-  const handleAddToCart = (
-    productId: string
-  ) => {
-    const product = products.find(
-      (item) => item.id === productId
-    );
+  const selectProduct = initialProductId
+    ? products.find((product) => product.id === initialProductId)
+    : null;
 
-    if (!product) {
-      return;
-    }
+  const chooseSize = (productId: string, size: ProductSize) => {
+    setSelectedSizes((current) => ({ ...current, [productId]: size }));
+  };
 
-    addToCart(
-      product,
-      selectedSizes[product.id] || "M",
-      1
-    );
+  const handleAdd = (productId: string) => {
+    const product = products.find((item) => item.id === productId);
+    if (!product) return;
 
-    setAddedProduct(product.id);
+    addToCart(product, selectedSizes[product.id] || "M", 1);
     setCartOpen(true);
-
-    window.setTimeout(() => {
-      setAddedProduct(null);
-    }, 1400);
   };
 
   return (
-    <main className="min-h-screen bg-[#F8F1E6] text-[#111111]">
+    <div className="min-h-screen bg-[#F8F1E6] text-[#111111]">
       <Navbar />
 
-      {/* HERO */}
-      <section className="pt-32 pb-16 px-5">
-        <div className="max-w-7xl mx-auto">
+      <main className="pt-24">
+        <section className="relative overflow-hidden border-b border-[#E8DEC8] bg-[#EFE7DA]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(180,35,24,0.12),transparent_30%),radial-gradient(circle_at_20%_100%,rgba(214,90,31,0.08),transparent_35%)]" />
 
-          <div className="grid lg:grid-cols-[1.15fr_0.85fr] gap-10 items-end">
-
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.3em] text-[#B42318] mb-5">
-                Rhythm of India · Merch
+          <div className="relative mx-auto grid max-w-7xl gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[1.15fr_.85fr] lg:px-10 lg:py-20">
+            <div className="flex flex-col justify-center">
+              <p className="font-mono text-xs font-black uppercase tracking-[0.25em] text-[#B42318]">
+                Dance with tradition
               </p>
 
-              <h1 className="text-5xl sm:text-6xl lg:text-8xl font-black uppercase tracking-[-0.05em] leading-[0.85]">
-                Wear the
-                <span className="block text-[#B42318]">
-                  Rhythm.
-                </span>
+              <h1 className="mt-4 max-w-3xl text-5xl font-black uppercase leading-[0.88] tracking-tight sm:text-7xl">
+                Costume
+                <span className="text-[#B42318]"> Shop</span>
               </h1>
 
-              <p className="max-w-xl mt-7 text-[#777777] text-base sm:text-lg leading-relaxed">
-                Our first three Rhythm of India
-                pieces — designed around Indian
-                movement, heritage and the energy
-                of performance.
+              <p className="mt-6 max-w-2xl text-base leading-7 text-black/60 sm:text-lg">
+                Authentic dance attire for every classical form. Get the right
+                costume for academy training, rehearsals and performances.
               </p>
 
-              <div className="flex flex-wrap gap-3 mt-8">
-                <span className="px-4 py-2 rounded-full bg-[#111111] text-white text-xs font-black uppercase tracking-wider">
-                  3 Designs
-                </span>
-
-                <span className="px-4 py-2 rounded-full border border-[#DCCFB8] text-xs font-black uppercase tracking-wider">
-                  S — XXL
-                </span>
-
-                <span className="px-4 py-2 rounded-full border border-[#DCCFB8] text-xs font-black uppercase tracking-wider">
-                  Made for Rhythm
-                </span>
+              <div className="mt-8 flex flex-wrap gap-3">
+                {[
+                  "Authentic Designs",
+                  "Performance Ready",
+                  "Pan India Delivery",
+                ].map((item) => (
+                  <span
+                    key={item}
+                    className="rounded-full border border-[#D8CBB7] bg-white/70 px-4 py-2 text-[10px] font-black uppercase tracking-wider text-[#111111]"
+                  >
+                    ✓ {item}
+                  </span>
+                ))}
               </div>
             </div>
 
-            <div className="lg:text-right">
-              <p className="text-sm font-bold text-[#777777]">
-                Rhythm of India
-              </p>
-
-              <p className="text-2xl font-black font-mono mt-2">
-                THE MERCH EDIT
-              </p>
+            <div className="relative min-h-[280px] overflow-hidden rounded-[32px] border border-[#E0D4C1] bg-[#DCCFBD]">
+              <Image
+                src="/products/bharatanatyam-costume.png"
+                alt="Classical Indian dance costume"
+                fill
+                sizes="(max-width: 1024px) 100vw, 40vw"
+                className="object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
+              <div className="absolute bottom-6 left-6 max-w-xs text-white">
+                <p className="font-serif text-2xl italic">
+                  “Wear the tradition. Dance the legacy.”
+                </p>
+              </div>
             </div>
-
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* PRODUCTS */}
-      <section className="px-5 pb-24">
-        <div className="max-w-7xl mx-auto">
-
-          <div className="flex items-end justify-between mb-8">
-            <div>
-              <p className="text-xs uppercase tracking-[0.25em] font-black text-[#B42318]">
-                Collection 01
-              </p>
-
-              <h2 className="text-3xl sm:text-4xl font-black uppercase mt-2">
-                The Rhythm Edit
-              </h2>
-            </div>
-
-            <button
-              onClick={() =>
-                setCartOpen(true)
-              }
-              className="hidden sm:flex items-center gap-2 px-5 py-3 rounded-full bg-[#111111] text-white text-xs font-black uppercase tracking-wider hover:bg-[#B42318] transition-colors cursor-pointer"
-            >
-              <ShoppingBag size={15} />
-              Cart · {itemCount}
-            </button>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-            {products.map((product, index) => (
-              <motion.article
-                key={product.id}
-                initial={{
-                  opacity: 0,
-                  y: 24,
-                }}
-                whileInView={{
-                  opacity: 1,
-                  y: 0,
-                }}
-                viewport={{
-                  once: true,
-                  amount: 0.15,
-                }}
-                transition={{
-                  duration: 0.45,
-                  delay: index * 0.08,
-                }}
-                className="group bg-white rounded-[28px] overflow-hidden border border-[#E8DEC8] shadow-sm hover:shadow-xl transition-shadow"
+        <section className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-10">
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {categories.map((category) => (
+              <button
+                key={category}
+                type="button"
+                onClick={() => setActiveCategory(category)}
+                className={`shrink-0 rounded-full border px-5 py-2.5 text-xs font-black transition ${
+                  activeCategory === category
+                    ? "border-[#B42318] bg-[#B42318] text-white"
+                    : "border-[#D8CBB7] bg-white text-[#111111] hover:border-[#B42318]"
+                }`}
               >
+                {category}
+              </button>
+            ))}
+          </div>
 
-                {/* PRODUCT IMAGE */}
-                <div className="relative aspect-square bg-[#EEE5D6] overflow-hidden">
+          {selectProduct && (
+            <div className="mt-5 rounded-2xl border border-[#B42318]/20 bg-[#FFF7F2] px-5 py-4 text-sm">
+              <span className="font-black">Selected costume:</span>{" "}
+              {selectProduct.name}. Choose your size below and add it to your
+              cart.
+            </div>
+          )}
 
-                  <Image
-                    src={product.image}
-                    alt={product.name}
-                    fill
-                    className="object-cover group-hover:scale-[1.03] transition-transform duration-700"
-                  />
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredProducts.map((product) => {
+              const selectedSize = selectedSizes[product.id] || "M";
 
-                  {product.badge && (
-                    <div className="absolute top-5 left-5 bg-[#B42318] text-white px-3 py-2 rounded-full text-[10px] font-black tracking-wider">
-                      {product.badge}
+              return (
+                <article
+                  key={product.id}
+                  className="overflow-hidden rounded-[28px] border border-[#E0D4C1] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+                >
+                  <Link
+                    href={`/products?product=${product.id}`}
+                    className="group block"
+                  >
+                    <div className="relative aspect-[4/4.7] overflow-hidden bg-[#EEE5D7]">
+                      <Image
+                        src={product.image}
+                        alt={product.name}
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        className="object-cover transition duration-700 group-hover:scale-105"
+                      />
+
+                      {product.badge && (
+                        <span
+                          className="absolute left-4 top-4 rounded-full px-3 py-1.5 text-[9px] font-black tracking-[0.15em] text-white"
+                          style={{ backgroundColor: product.accent }}
+                        >
+                          {product.badge}
+                        </span>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </Link>
 
-                {/* DETAILS */}
-                <div className="p-6">
+                  <div className="p-5">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#777777]">
+                      {product.category}
+                    </p>
 
-                  <div className="flex items-start justify-between gap-4">
+                    <div className="mt-2 flex items-start justify-between gap-3">
+                      <h2 className="text-xl font-black uppercase leading-tight tracking-tight">
+                        {product.name}
+                      </h2>
 
-                    <div>
-                      <p className="text-[10px] uppercase tracking-[0.2em] font-black text-[#777777]">
-                        Rhythm of India
+                      <span className="shrink-0 text-lg font-black text-[#B42318]">
+                        ₹{product.price.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+
+                    <p className="mt-3 text-sm leading-6 text-black/50">
+                      {product.description}
+                    </p>
+
+                    <div className="mt-5">
+                      <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-[#777777]">
+                        Select Size
                       </p>
 
-                      <h3 className="text-xl font-black uppercase mt-1">
-                        {product.name}
-                      </h3>
-                    </div>
-
-                    <p className="font-black font-mono text-lg whitespace-nowrap">
-                      ₹
-                      {product.price.toLocaleString(
-                        "en-IN"
-                      )}
-                    </p>
-
-                  </div>
-
-                  <p className="text-sm text-[#777777] leading-relaxed mt-4">
-                    {product.description}
-                  </p>
-
-                  {/* SIZE */}
-                  <div className="mt-6">
-
-                    <p className="text-[10px] uppercase tracking-[0.2em] font-black text-[#777777] mb-3">
-                      Select Size
-                    </p>
-
-                    <div className="flex gap-2">
-                      {productSizes.map(
-                        (size) => (
+                      <div className="flex flex-wrap gap-2">
+                        {productSizes.map((size) => (
                           <button
                             key={size}
                             type="button"
-                            onClick={() =>
-                              setSelectedSizes(
-                                (current) => ({
-                                  ...current,
-                                  [product.id]:
-                                    size,
-                                })
-                              )
-                            }
-                            className={`w-10 h-10 rounded-full text-xs font-black border transition-all cursor-pointer ${
-                              selectedSizes[
-                                product.id
-                              ] === size
-                                ? "bg-[#111111] text-white border-[#111111]"
-                                : "bg-white border-[#DCCFB8] hover:border-[#B42318]"
+                            onClick={() => chooseSize(product.id, size)}
+                            className={`grid h-9 min-w-9 place-items-center rounded-full border px-2 text-[11px] font-black transition ${
+                              selectedSize === size
+                                ? "border-[#B42318] bg-[#B42318] text-white"
+                                : "border-[#D8CBB7] bg-[#FDFBF7] hover:border-[#B42318]"
                             }`}
                           >
                             {size}
                           </button>
-                        )
-                      )}
+                        ))}
+                      </div>
                     </div>
-
-                  </div>
-
-                  {/* ACTIONS */}
-                  <div className="flex gap-2 mt-6">
 
                     <button
                       type="button"
-                      onClick={() =>
-                        handleAddToCart(
-                          product.id
-                        )
-                      }
-                      className="flex-1 py-3.5 rounded-xl bg-[#B42318] hover:bg-[#922018] text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                      onClick={() => handleAdd(product.id)}
+                      className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-[#111111] px-5 py-3.5 text-xs font-black uppercase tracking-wider text-white transition hover:bg-[#B42318]"
                     >
-                      {addedProduct ===
-                      product.id ? (
-                        <>
-                          <Check size={16} />
-                          Added
-                        </>
-                      ) : (
-                        <>
-                          <ShoppingCart
-                            size={16}
-                          />
-                          Add to Cart
-                        </>
-                      )}
+                      <ShoppingBag size={15} />
+                      Add to Cart
                     </button>
-
-                    <Link
-                      href={`/product-checkout?product=${product.id}&size=${
-                        selectedSizes[
-                          product.id
-                        ] || "M"
-                      }`}
-                      className="w-12 rounded-xl border border-[#DCCFB8] bg-[#FDFBF7] flex items-center justify-center hover:border-[#111111] transition-colors"
-                    >
-                      <ArrowRight
-                        size={17}
-                      />
-                    </Link>
-
                   </div>
-
-                </div>
-              </motion.article>
-            ))}
-
+                </article>
+              );
+            })}
           </div>
-        </div>
-      </section>
 
-      {/* MOBILE CART BUTTON */}
+          <div className="mt-10 grid gap-3 rounded-[28px] border border-[#E8DEC8] bg-white/60 p-5 sm:grid-cols-3">
+            {[
+              ["Pan India Delivery", "Fast & reliable shipping"],
+              ["Secure Payments", "Safe Razorpay checkout"],
+              ["Premium Quality", "Dance-ready attire"],
+            ].map(([title, text]) => (
+              <div
+                key={title}
+                className="rounded-2xl bg-[#F8F1E6] p-5 text-center"
+              >
+                <p className="text-sm font-black">{title}</p>
+                <p className="mt-1 text-xs text-[#777777]">{text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      </main>
+
       <button
         type="button"
-        onClick={() =>
-          setCartOpen(true)
-        }
-        className="sm:hidden fixed bottom-5 right-5 z-40 w-14 h-14 rounded-full bg-[#B42318] text-white shadow-2xl flex items-center justify-center cursor-pointer"
+        onClick={() => setCartOpen(true)}
+        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-[#B42318] px-5 py-3.5 text-xs font-black text-white shadow-2xl transition hover:-translate-y-1"
       >
-        <ShoppingBag size={21} />
-
-        {itemCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-[#111111] text-white text-[10px] font-black flex items-center justify-center">
-            {itemCount}
-          </span>
-        )}
+        <ShoppingBag size={16} />
+        Cart ({itemCount})
       </button>
 
-      {/* CART OVERLAY */}
-      <AnimatePresence>
-        {cartOpen && (
-          <>
-            <motion.div
-              initial={{
-                opacity: 0,
-              }}
-              animate={{
-                opacity: 1,
-              }}
-              exit={{
-                opacity: 0,
-              }}
-              onClick={() =>
-                setCartOpen(false)
-              }
-              className="fixed inset-0 bg-black/40 z-40"
-            />
+      {cartOpen && (
+        <div className="fixed inset-0 z-50">
+          <button
+            type="button"
+            aria-label="Close cart"
+            onClick={() => setCartOpen(false)}
+            className="absolute inset-0 bg-black/45"
+          />
 
-            <motion.aside
-              initial={{
-                x: "100%",
-              }}
-              animate={{
-                x: 0,
-              }}
-              exit={{
-                x: "100%",
-              }}
-              transition={{
-                type: "spring",
-                damping: 28,
-                stiffness: 280,
-              }}
-              className="fixed top-0 right-0 h-full w-full sm:max-w-md bg-[#FDFBF7] z-50 shadow-2xl flex flex-col"
-            >
-
-              {/* CART HEADER */}
-              <div className="p-6 border-b border-[#E8DEC8] flex items-center justify-between">
-
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] font-black text-[#B42318]">
-                    Rhythm of India
-                  </p>
-
-                  <h2 className="text-2xl font-black uppercase mt-1">
-                    Your Cart
-                  </h2>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCartOpen(false)
-                  }
-                  className="w-10 h-10 rounded-full border border-[#DCCFB8] flex items-center justify-center cursor-pointer hover:bg-[#111111] hover:text-white transition-colors"
-                >
-                  <X size={18} />
-                </button>
-
+          <aside className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-[#FDFBF7] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#E8DEC8] px-6 py-5">
+              <div>
+                <p className="font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[#B42318]">
+                  Rhythm Shop
+                </p>
+                <h2 className="mt-1 text-2xl font-black uppercase">
+                  Your Cart
+                </h2>
               </div>
 
-              {/* ITEMS */}
-              <div className="flex-1 overflow-y-auto p-6">
+              <button
+                type="button"
+                onClick={() => setCartOpen(false)}
+                className="grid h-10 w-10 place-items-center rounded-full border border-[#E8DEC8] hover:bg-[#F8F1E6]"
+              >
+                <X size={18} />
+              </button>
+            </div>
 
-                {items.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center">
-
-                    <div className="w-16 h-16 rounded-full bg-[#EEE5D6] flex items-center justify-center mb-5">
-                      <ShoppingBag
-                        size={25}
-                      />
-                    </div>
-
-                    <h3 className="font-black uppercase text-lg">
-                      Your cart is empty
-                    </h3>
-
-                    <p className="text-sm text-[#777777] mt-2">
-                      Pick a piece from the
-                      collection.
-                    </p>
-
-                  </div>
-                ) : (
-                  <div className="space-y-5">
-
-                    {items.map((item) => (
-                      <div
-                        key={`${item.product.id}-${item.size}`}
-                        className="flex gap-4"
-                      >
-
-                        <div className="relative w-24 h-24 rounded-xl overflow-hidden bg-[#EEE5D6] shrink-0">
+            <div className="flex-1 overflow-y-auto p-5">
+              {items.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-[#D8CBB7] p-8 text-center">
+                  <ShoppingBag className="mx-auto text-[#B42318]" />
+                  <p className="mt-3 font-black">Your cart is empty.</p>
+                  <p className="mt-1 text-sm text-[#777777]">
+                    Choose your academy costume to get started.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {items.map((item) => (
+                    <div
+                      key={`${item.product.id}-${item.size}`}
+                      className="rounded-2xl border border-[#E8DEC8] bg-white p-4"
+                    >
+                      <div className="flex gap-4">
+                        <div className="relative h-24 w-20 shrink-0 overflow-hidden rounded-xl bg-[#EEE5D7]">
                           <Image
-                            src={
-                              item.product.image
-                            }
-                            alt={
-                              item.product.name
-                            }
+                            src={item.product.image}
+                            alt={item.product.name}
                             fill
+                            sizes="80px"
                             className="object-cover"
                           />
                         </div>
 
-                        <div className="flex-1 min-w-0">
-
-                          <div className="flex justify-between gap-3">
-                            <div>
-                              <h3 className="font-black text-sm uppercase">
-                                {
-                                  item.product
-                                    .name
-                                }
-                              </h3>
-
-                              <p className="text-xs text-[#777777] mt-1">
-                                Size:{" "}
-                                <strong className="text-[#111111]">
-                                  {item.size}
-                                </strong>
-                              </p>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                removeFromCart(
-                                  item.product
-                                    .id,
-                                  item.size
-                                )
-                              }
-                              className="text-[#777777] hover:text-[#B42318] cursor-pointer"
-                            >
-                              <Trash2
-                                size={15}
-                              />
-                            </button>
-                          </div>
-
-                          <div className="flex items-center justify-between mt-4">
-
-                            <div className="flex items-center border border-[#DCCFB8] rounded-lg">
-
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateQuantity(
-                                    item.product
-                                      .id,
-                                    item.size,
-                                    item.quantity -
-                                      1
-                                  )
-                                }
-                                className="w-8 h-8 flex items-center justify-center cursor-pointer"
-                              >
-                                <Minus
-                                  size={13}
-                                />
-                              </button>
-
-                              <span className="w-8 text-center text-xs font-black">
-                                {item.quantity}
-                              </span>
-
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateQuantity(
-                                    item.product
-                                      .id,
-                                    item.size,
-                                    item.quantity +
-                                      1
-                                  )
-                                }
-                                className="w-8 h-8 flex items-center justify-center cursor-pointer"
-                              >
-                                <Plus
-                                  size={13}
-                                />
-                              </button>
-
-                            </div>
-
-                            <p className="font-black font-mono text-sm">
-                              ₹
-                              {(
-                                item.product
-                                  .price *
-                                item.quantity
-                              ).toLocaleString(
-                                "en-IN"
-                              )}
-                            </p>
-
-                          </div>
-
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-black leading-tight">
+                            {item.product.name}
+                          </p>
+                          <p className="mt-1 text-xs text-[#777777]">
+                            Size: {item.size}
+                          </p>
+                          <p className="mt-1 font-mono text-sm font-black text-[#B42318]">
+                            ₹{item.product.price.toLocaleString("en-IN")}
+                          </p>
                         </div>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            removeFromCart(item.product.id, item.size)
+                          }
+                          className="self-start text-[#777777] hover:text-red-700"
+                          aria-label={`Remove ${item.product.name}`}
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </div>
-                    ))}
 
-                  </div>
-                )}
-              </div>
+                      <div className="mt-4 flex items-center justify-between">
+                        <div className="flex items-center rounded-full border border-[#D8CBB7]">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateQuantity(
+                                item.product.id,
+                                item.size,
+                                item.quantity - 1
+                              )
+                            }
+                            className="grid h-8 w-8 place-items-center"
+                          >
+                            <Minus size={13} />
+                          </button>
+                          <span className="w-8 text-center text-xs font-black">
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateQuantity(
+                                item.product.id,
+                                item.size,
+                                item.quantity + 1
+                              )
+                            }
+                            className="grid h-8 w-8 place-items-center"
+                          >
+                            <Plus size={13} />
+                          </button>
+                        </div>
 
-              {/* CART FOOTER */}
-              {items.length > 0 && (
-                <div className="border-t border-[#E8DEC8] p-6 bg-white">
-
-                  <div className="flex justify-between mb-2">
-                    <span className="text-sm text-[#777777]">
-                      Subtotal
-                    </span>
-
-                    <span className="font-black">
-                      ₹
-                      {subtotal.toLocaleString(
-                        "en-IN"
-                      )}
-                    </span>
-                  </div>
-
-                  <p className="text-[10px] text-[#777777] mb-5">
-                    Shipping calculated at
-                    checkout.
-                  </p>
-
-                  <Link
-                    href="/product-checkout"
-                    onClick={() =>
-                      setCartOpen(false)
-                    }
-                    className="w-full py-4 rounded-xl bg-[#B42318] hover:bg-[#922018] text-white flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider transition-colors"
-                  >
-                    Checkout
-                    <ArrowRight size={16} />
-                  </Link>
-
+                        <span className="text-sm font-black">
+                          ₹{(item.product.price * item.quantity).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
+            </div>
 
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
-    </main>
+            <div className="border-t border-[#E8DEC8] bg-white p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-[#777777]">
+                  Subtotal
+                </span>
+                <span className="text-xl font-black">
+                  ₹{subtotal.toLocaleString("en-IN")}
+                </span>
+              </div>
+
+              <p className="mt-2 text-[10px] leading-5 text-[#777777]">
+                Shipping is calculated securely at checkout. Free shipping on
+                orders above ₹1,499.
+              </p>
+
+              <Link
+                href="/product-checkout"
+                onClick={() => setCartOpen(false)}
+                className={`mt-4 flex items-center justify-center gap-2 rounded-full px-5 py-3.5 text-xs font-black uppercase tracking-wider ${
+                  items.length
+                    ? "bg-[#B42318] text-white hover:bg-[#921C14]"
+                    : "pointer-events-none bg-[#E8DEC8] text-[#999999]"
+                }`}
+              >
+                Checkout
+                <ArrowRight size={15} />
+              </Link>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      <footer className="border-t border-[#E8DEC8] bg-[#111111] px-5 py-12 text-white sm:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-black tracking-tight">RHYTHM OF INDIA</p>
+            <p className="mt-1 text-[10px] font-mono font-bold tracking-[0.18em] text-white/35">
+              CLASSICAL DANCE ACADEMY
+            </p>
+          </div>
+
+          <p className="text-xs text-white/40">Tradition lives on you.</p>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-[#F8F1E6] text-[#B42318]">
+          Loading costume shop...
+        </div>
+      }
+    >
+      <ProductsContent />
+    </Suspense>
   );
 }

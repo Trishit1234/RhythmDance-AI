@@ -1,27 +1,18 @@
-import { initializeApp, getApps } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getAnalytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBVlxgdjBdX4Yk871QNuslHZE14dV-2rJ0",
-  authDomain: "rhythm-of-india.firebaseapp.com",
-  projectId: "rhythm-of-india",
-  storageBucket: "rhythm-of-india.firebasestorage.app",
-  messagingSenderId: "284984606125",
-  appId: "1:284984606125:web:7d7daa19a9a3ae4542f524",
-  measurementId: "G-E0D2PSN2CY"
+  apiKey: "AIzaSyBStsL792KkLoZCh1tIOPZ0UUtM55fYVv8",
+  authDomain: "rhythm-of-india-7ea88.firebaseapp.com",
+  projectId: "rhythm-of-india-7ea88",
+  storageBucket: "rhythm-of-india-7ea88.firebasestorage.app",
+  messagingSenderId: "689991990252",
+  appId: "1:689991990252:web:0044f3491a4837b0ae9ec9",
+  measurementId: "G-R106T0EFEG",
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const auth = getAuth(app);
+export const app = getApps().length
+  ? getApp()
+  : initializeApp(firebaseConfig);
 
-let analytics = null;
-if (typeof window !== "undefined") {
-  isSupported().then((supported) => {
-    if (supported) {
-      analytics = getAnalytics(app);
-    }
-  });
-}
-
-export { app, auth, analytics };
+export const auth = getAuth(app);
