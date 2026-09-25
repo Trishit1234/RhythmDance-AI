@@ -9,7 +9,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useProgress } from "@/context/ProgressContext";
 import Navbar from "@/components/Navbar";
 import DanceCard from "@/components/DanceCard";
-import MerchSection from "@/components/MerchSection";
 
 import {
   Sparkles,
@@ -1678,12 +1677,6 @@ export default function DashboardPage() {
           )}
 
         </section>
-
-        {/* ======================================================
-            MERCH
-        ====================================================== */}
-
-        <MerchSection />
 
         {/* ======================================================
             REVIEWS

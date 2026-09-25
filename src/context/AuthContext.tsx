@@ -9,258 +9,306 @@ import {
 } from "react";
 
 import {
-  browserLocalPersistence,
-  createUserWithEmailAndPassword,
-  GoogleAuthProvider,
   onAuthStateChanged,
-  setPersistence,
-  signInAnonymously,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInAnonymously,
   signInWithPopup,
+  GoogleAuthProvider,
   signOut,
-  updateProfile,
   type User,
 } from "firebase/auth";
 
 import {
   doc,
   getDoc,
-  serverTimestamp,
   setDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 
-import { auth } from "@/lib/firebase";
-import { db } from "@/lib/firestore";
+import { auth, db } from "@/lib/firebase";
+import type { UserProfile, UserRole } from "@/types/auth";
 
 interface AuthContextType {
   user: User | null;
+  profile: UserProfile | null;
+  role: UserRole | null;
   loading: boolean;
 
   login: (email: string, password: string) => Promise<void>;
+
+  loginWithRole: (
+    email: string,
+    password: string,
+    expectedRole: UserRole
+  ) => Promise<void>;
+
   signup: (email: string, password: string) => Promise<void>;
+
   guestLogin: () => Promise<void>;
+
   googleLogin: () => Promise<void>;
+
   logout: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(
-  undefined
-);
+const AuthContext = createContext<AuthContextType | null>(null);
 
-/* =========================================================
-   SAVE USER TO FIRESTORE
-========================================================= */
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [role, setRole] = useState<UserRole | null>(null);
+  const [loading, setLoading] = useState(true);
 
-async function saveUserToFirestore(user: User) {
-  if (!user || user.isAnonymous) {
-    return;
-  }
+  /**
+   * Load Firestore user profile
+   */
+  const loadProfile = async (firebaseUser: User | null) => {
+    if (!firebaseUser) {
+      setProfile(null);
+      setRole(null);
+      return;
+    }
 
-  try {
-    const userRef = doc(db, "users", user.uid);
+    try {
+      const userRef = doc(db, "users", firebaseUser.uid);
+      const userSnapshot = await getDoc(userRef);
+
+      if (userSnapshot.exists()) {
+        const data = userSnapshot.data();
+
+        const userProfile: UserProfile = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email || "",
+          displayName:
+            data.displayName ||
+            firebaseUser.displayName ||
+            firebaseUser.email?.split("@")[0] ||
+            "User",
+          role: data.role || "student",
+          photoURL: data.photoURL || firebaseUser.photoURL || undefined,
+          createdAt: data.createdAt,
+        };
+
+        setProfile(userProfile);
+        setRole(userProfile.role);
+      } else {
+        /**
+         * Existing users from your old version may not have
+         * a Firestore profile yet.
+         *
+         * We treat them as students.
+         */
+        const fallbackProfile: UserProfile = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email || "",
+          displayName:
+            firebaseUser.displayName ||
+            firebaseUser.email?.split("@")[0] ||
+            "Student",
+          role: "student",
+          photoURL: firebaseUser.photoURL || undefined,
+        };
+
+        setProfile(fallbackProfile);
+        setRole("student");
+      }
+    } catch (error) {
+      console.error("Failed to load user profile:", error);
+
+      /**
+       * Do NOT give admin/tutor privileges if Firestore fails.
+       * Safest fallback is student.
+       */
+      setProfile({
+        uid: firebaseUser.uid,
+        email: firebaseUser.email || "",
+        displayName:
+          firebaseUser.displayName ||
+          firebaseUser.email?.split("@")[0] ||
+          "Student",
+        role: "student",
+      });
+
+      setRole("student");
+    }
+  };
+
+  /**
+   * Firebase authentication listener
+   */
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser);
+
+      if (firebaseUser) {
+        await loadProfile(firebaseUser);
+      } else {
+        setProfile(null);
+        setRole(null);
+      }
+
+      setLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  /**
+   * Normal student login
+   */
+  const login = async (email: string, password: string) => {
+    await signInWithEmailAndPassword(auth, email, password);
+  };
+
+  /**
+   * Admin / Tutor / Student role-specific login
+   */
+  const loginWithRole = async (
+    email: string,
+    password: string,
+    expectedRole: UserRole
+  ) => {
+    const credential = await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+
+    const firebaseUser = credential.user;
+
+    const userRef = doc(db, "users", firebaseUser.uid);
+    const userSnapshot = await getDoc(userRef);
+
+    if (!userSnapshot.exists()) {
+      await signOut(auth);
+
+      throw new Error(
+        "Your account does not have a Rhythm of India role assigned."
+      );
+    }
+
+    const data = userSnapshot.data();
+    const actualRole = data.role as UserRole;
+
+    if (actualRole !== expectedRole) {
+      await signOut(auth);
+
+      throw new Error(
+        `This account is registered as ${actualRole}. Please use the correct login portal.`
+      );
+    }
+
+    const userProfile: UserProfile = {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email || "",
+      displayName:
+        data.displayName ||
+        firebaseUser.displayName ||
+        email.split("@")[0],
+      role: actualRole,
+      photoURL: data.photoURL || firebaseUser.photoURL || undefined,
+      createdAt: data.createdAt,
+    };
+
+    setUser(firebaseUser);
+    setProfile(userProfile);
+    setRole(actualRole);
+  };
+
+  /**
+   * Student registration
+   */
+  const signup = async (email: string, password: string) => {
+    const credential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+
+    const firebaseUser = credential.user;
+
+    /**
+     * IMPORTANT:
+     * Every normal signup is automatically a STUDENT.
+     *
+     * Users cannot register themselves as admin or tutor.
+     */
+    await setDoc(doc(db, "users", firebaseUser.uid), {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email || email,
+      displayName: email.split("@")[0],
+      role: "student",
+      createdAt: serverTimestamp(),
+    });
+
+    const studentProfile: UserProfile = {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email || email,
+      displayName: email.split("@")[0],
+      role: "student",
+    };
+
+    setUser(firebaseUser);
+    setProfile(studentProfile);
+    setRole("student");
+  };
+
+  /**
+   * Guest login
+   */
+  const guestLogin = async () => {
+    await signInAnonymously(auth);
+  };
+
+  /**
+   * Google login
+   *
+   * Google users are treated as students unless an admin/tutor
+   * profile has already been created manually.
+   */
+  const googleLogin = async () => {
+    const provider = new GoogleAuthProvider();
+
+    const credential = await signInWithPopup(auth, provider);
+
+    const firebaseUser = credential.user;
+
+    const userRef = doc(db, "users", firebaseUser.uid);
     const userSnapshot = await getDoc(userRef);
 
     if (!userSnapshot.exists()) {
       await setDoc(userRef, {
-        uid: user.uid,
-        name: user.displayName || "",
-        email: user.email || "",
-        photoURL: user.photoURL || "",
-        provider:
-          user.providerData[0]?.providerId || "unknown",
+        uid: firebaseUser.uid,
+        email: firebaseUser.email || "",
+        displayName: firebaseUser.displayName || "Student",
+        role: "student",
+        photoURL: firebaseUser.photoURL || null,
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
       });
-
-      console.log("New user created in Firestore");
-    } else {
-      await setDoc(
-        userRef,
-        {
-          name: user.displayName || "",
-          email: user.email || "",
-          photoURL: user.photoURL || "",
-          updatedAt: serverTimestamp(),
-        },
-        {
-          merge: true,
-        }
-      );
-
-      console.log("User updated in Firestore");
     }
-  } catch (error) {
-    console.error(
-      "Failed to save user to Firestore:",
-      error
-    );
-  }
-}
-
-/* =========================================================
-   AUTH PROVIDER
-========================================================= */
-
-export function AuthProvider({
-  children,
-}: {
-  children: ReactNode;
-}) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  /* -------------------------------------------------------
-     AUTH STATE
-  ------------------------------------------------------- */
-
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-
-    const initializeAuth = async () => {
-      try {
-        await setPersistence(
-          auth,
-          browserLocalPersistence
-        );
-
-        unsubscribe = onAuthStateChanged(
-          auth,
-          async (firebaseUser) => {
-            setUser(firebaseUser);
-
-            if (firebaseUser) {
-              await saveUserToFirestore(firebaseUser);
-            }
-
-            setLoading(false);
-          }
-        );
-      } catch (error) {
-        console.error(
-          "Firebase Auth initialization failed:",
-          error
-        );
-
-        setLoading(false);
-      }
-    };
-
-    initializeAuth();
-
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, []);
-
-  /* -------------------------------------------------------
-     EMAIL LOGIN
-  ------------------------------------------------------- */
-
-  const login = async (
-    email: string,
-    password: string
-  ): Promise<void> => {
-    const cleanEmail = email.trim();
-
-    if (!cleanEmail || !password) {
-      throw new Error(
-        "Please enter your email and password."
-      );
-    }
-
-    const result =
-      await signInWithEmailAndPassword(
-        auth,
-        cleanEmail,
-        password
-      );
-
-    setUser(result.user);
-
-    await saveUserToFirestore(result.user);
   };
 
-  /* -------------------------------------------------------
-     EMAIL SIGNUP
-  ------------------------------------------------------- */
-
-  const signup = async (
-    email: string,
-    password: string
-  ): Promise<void> => {
-    const cleanEmail = email.trim();
-
-    if (!cleanEmail || !password) {
-      throw new Error(
-        "Please enter your email and password."
-      );
-    }
-
-    if (password.length < 6) {
-      throw new Error(
-        "Password must be at least 6 characters."
-      );
-    }
-
-    const result =
-      await createUserWithEmailAndPassword(
-        auth,
-        cleanEmail,
-        password
-      );
-
-    setUser(result.user);
-
-    await saveUserToFirestore(result.user);
-  };
-
-  /* -------------------------------------------------------
-     GUEST LOGIN
-  ------------------------------------------------------- */
-
-  const guestLogin = async (): Promise<void> => {
-    const result = await signInAnonymously(auth);
-
-    setUser(result.user);
-  };
-
-  /* -------------------------------------------------------
-     GOOGLE LOGIN
-  ------------------------------------------------------- */
-
-  const googleLogin = async (): Promise<void> => {
-    const provider = new GoogleAuthProvider();
-
-    provider.addScope("profile");
-    provider.addScope("email");
-
-    const result = await signInWithPopup(
-      auth,
-      provider
-    );
-
-    setUser(result.user);
-
-    await saveUserToFirestore(result.user);
-  };
-
-  /* -------------------------------------------------------
-     LOGOUT
-  ------------------------------------------------------- */
-
-  const logout = async (): Promise<void> => {
+  /**
+   * Logout
+   */
+  const logout = async () => {
     await signOut(auth);
+
     setUser(null);
+    setProfile(null);
+    setRole(null);
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
+        profile,
+        role,
         loading,
         login,
+        loginWithRole,
         signup,
         guestLogin,
         googleLogin,
@@ -272,17 +320,11 @@ export function AuthProvider({
   );
 }
 
-/* =========================================================
-   USE AUTH
-========================================================= */
-
-export function useAuth(): AuthContextType {
+export function useAuth() {
   const context = useContext(AuthContext);
 
   if (!context) {
-    throw new Error(
-      "useAuth must be used inside an AuthProvider"
-    );
+    throw new Error("useAuth must be used within AuthProvider");
   }
 
   return context;

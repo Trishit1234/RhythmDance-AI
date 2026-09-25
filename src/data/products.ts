@@ -1,4 +1,10 @@
-export type ProductSize = "XS" | "S" | "M" | "L" | "XL" | "XXL";
+export type ProductSize =
+  | "XS"
+  | "S"
+  | "M"
+  | "L"
+  | "XL"
+  | "XXL";
 
 export type ProductCategory =
   | "Bharatanatyam"
@@ -34,39 +40,56 @@ export const products: Product[] = [
     name: "Bharatanatyam Dance Costume",
     price: 2499,
     description:
-      "Traditional stitched Bharatanatyam costume with pleated fan, dance belt and performance-ready detailing.",
+      "Traditional Bharatanatyam costume designed for academy training, rehearsals and stage performances.",
     category: "Bharatanatyam",
     sizes: productSizes,
-    image: "/products/bharatanatyam-costume.jpg",
+    image: "/products/PRODUCT-1.JPEG",
     accent: "#B42318",
     badge: "CLASSICAL",
   },
+
   {
     id: "kathak-costume",
     name: "Kathak Dance Costume",
-    price: 2299,
+    price: 2700,
     description:
       "Elegant Kathak performance attire designed for comfortable movement during training and stage performances.",
     category: "Kathak",
     sizes: productSizes,
-    image: "/products/kathak-costume.jpg",
+    image: "/products/PRODUCT-2.JPEG",
     accent: "#8F1D3E",
     badge: "ACADEMY PICK",
   },
+
   {
     id: "odissi-costume",
     name: "Odissi Dance Costume",
-    price: 2499,
+    price: 2600,
     description:
-      "Traditional Odissi-inspired costume with structured drape, fitted styling and heritage-inspired detailing.",
+      "Traditional Odissi-inspired costume with graceful styling and performance-ready detailing.",
     category: "Odissi",
     sizes: productSizes,
-    image: "/products/odissi-costume.jpg",
+    image: "/products/PRODUCT-1.JPEG",
     accent: "#B45309",
     badge: "HERITAGE",
+  },
+
+  {
+    id: "kuchipudi-costume",
+    name: "Kuchipudi Dance Costume",
+    price: 2800,
+    description:
+      "Traditional Kuchipudi performance costume designed for comfortable movement, academy training and stage performances.",
+    category: "Kuchipudi",
+    sizes: productSizes,
+    image: "/products/PRODUCT-1.JPEG",
+    accent: "#7C3AED",
+    badge: "TRADITIONAL",
   },
 ];
 
 export function getProduct(productId: string) {
-  return products.find((product) => product.id === productId);
+  return products.find(
+    (product) => product.id === productId
+  );
 }
